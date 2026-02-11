@@ -14,6 +14,7 @@ export default function Home() {
               <span className="inline-block px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-sm font-medium mb-6 border border-white/30">
                 🎓 Plateforme de gestion pédagogique
               </span>
+              
             </div>
             
             <h1 className="text-4xl md:text-6xl font-bold mb-6">
