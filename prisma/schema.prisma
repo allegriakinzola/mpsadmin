@@ -1,0 +1,154 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Better-auth required tables
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// Application models
+model Coach {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String   @unique
+  phone     String?
+  specialty String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  courses   Course[]
+}
+
+model Student {
+  id                String       @id @default(cuid())
+  firstName         String
+  lastName          String
+  email             String       @unique
+  phone             String
+  address           String?
+  tradingLevel      String?      // Débutant, Intermédiaire, Avancé, Confirmé, Pro
+  hasDeriv          String?      // Statut du compte Deriv
+  paymentMethod     String?      // Crypto, Mobile, Virement
+  expectations      String?      // Attentes sur la formation
+  preferredSchedule String?      // avant-midi, après-midi, samedi
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  enrollments       Enrollment[]
+}
+
+model CourseSession {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  courses     Course[]
+}
+
+model Course {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  imageUrl    String?
+  location    String?          // Lieu (en ligne ou physique)
+  maxStudents Int              @default(30)
+  sessionId   String
+  session     CourseSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  coachId     String
+  coach       Coach            @relation(fields: [coachId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  enrollments Enrollment[]
+  schedules   CourseSchedule[]
+}
+
+model CourseSchedule {
+  id        String   @id @default(cuid())
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  date      DateTime // Date complète (jour, mois, année)
+  startTime DateTime // Heure de début
+  endTime   DateTime // Heure de fin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Enrollment {
+  id         String      @id @default(cuid())
+  studentId  String
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId   String
+  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrolledAt DateTime    @default(now())
+  status     String      @default("active") // active, completed, dropped
+  evaluation Evaluation?
+
+  @@unique([studentId, courseId])
+}
+
+model Evaluation {
+  id           String     @id @default(cuid())
+  enrollmentId String     @unique
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  grade        Float?     // Note chiffrée
+  observation  String?    // Appréciation en lettres
+  evaluatedAt  DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
