@@ -1,9 +1,14 @@
-"use server";
-
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
+import { handleCors, withCors } from "@/lib/cors";
+
+export async function OPTIONS(request: NextRequest) {
+  return handleCors(request) || new NextResponse(null, { status: 204 });
+}
 
 export async function POST(request: NextRequest) {
+  const corsResponse = handleCors(request);
+  if (corsResponse) return corsResponse;
   try {
     const body = await request.json();
 
@@ -22,9 +27,12 @@ export async function POST(request: NextRequest) {
 
     // Validation des champs obligatoires
     if (!firstName || !lastName || !email || !phone) {
-      return NextResponse.json(
-        { error: "Les champs nom, prénom, email et téléphone sont obligatoires" },
-        { status: 400 }
+      return withCors(
+        NextResponse.json(
+          { error: "Les champs nom, prénom, email et téléphone sont obligatoires" },
+          { status: 400 }
+        ),
+        request
       );
     }
 
@@ -34,9 +42,12 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingStudent) {
-      return NextResponse.json(
-        { error: "Un étudiant avec cet email existe déjà" },
-        { status: 409 }
+      return withCors(
+        NextResponse.json(
+          { error: "Un étudiant avec cet email existe déjà" },
+          { status: 409 }
+        ),
+        request
       );
     }
 
@@ -56,15 +67,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(
-      { message: "Inscription réussie", student },
-      { status: 201 }
+    return withCors(
+      NextResponse.json(
+        { message: "Inscription réussie", student },
+        { status: 201 }
+      ),
+      request
     );
   } catch (error) {
     console.error("Erreur lors de l'inscription:", error);
-    return NextResponse.json(
-      { error: "Erreur lors de l'inscription" },
-      { status: 500 }
+    return withCors(
+      NextResponse.json(
+        { error: "Erreur lors de l'inscription" },
+        { status: 500 }
+      ),
+      request
     );
   }
 }
