@@ -4,19 +4,74 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
-import { Calendar, BookOpen, Users, GraduationCap, TrendingUp, ArrowRight, Plus, ClipboardList, UserPlus, CalendarDays } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Calendar, BookOpen, Users, GraduationCap, TrendingUp, ArrowRight, Plus, ClipboardList, UserPlus, CalendarDays, CreditCard, CheckCircle, XCircle, Award } from "lucide-react";
 import Link from "next/link";
 
 async function getStats() {
-  const [sessionsCount, coursesCount, coachesCount, studentsCount, enrollmentsCount] = await Promise.all([
+  const [sessionsCount, coursesCount, coachesCount, studentsCount, enrollmentsCount, paidEnrollments, unpaidEnrollments] = await Promise.all([
     prisma.courseSession.count(),
     prisma.course.count(),
     prisma.coach.count(),
     prisma.student.count(),
     prisma.enrollment.count(),
+    prisma.enrollment.count({ where: { isPaid: true } }),
+    prisma.enrollment.count({ where: { isPaid: false } }),
   ]);
 
-  return { sessionsCount, coursesCount, coachesCount, studentsCount, enrollmentsCount };
+  // Cours avec le plus d'inscriptions payées
+  const topPaidCourses = await prisma.course.findMany({
+    include: {
+      session: true,
+      coach: true,
+      _count: {
+        select: {
+          enrollments: true,
+        },
+      },
+      enrollments: {
+        where: { isPaid: true },
+      },
+    },
+    orderBy: {
+      enrollments: { _count: "desc" },
+    },
+    take: 5,
+  });
+
+  // Étudiants ayant payé plusieurs formations
+  const studentsWithMultiplePaid = await prisma.student.findMany({
+    where: {
+      enrollments: {
+        some: { isPaid: true },
+      },
+    },
+    include: {
+      enrollments: {
+        where: { isPaid: true },
+        include: {
+          course: true,
+        },
+      },
+    },
+  });
+
+  const topStudents = studentsWithMultiplePaid
+    .filter((s) => s.enrollments.length > 1)
+    .sort((a, b) => b.enrollments.length - a.enrollments.length)
+    .slice(0, 5);
+
+  return { 
+    sessionsCount, 
+    coursesCount, 
+    coachesCount, 
+    studentsCount, 
+    enrollmentsCount,
+    paidEnrollments,
+    unpaidEnrollments,
+    topPaidCourses,
+    topStudents,
+  };
 }
 
 export default async function DashboardPage() {
@@ -53,8 +108,8 @@ export default async function DashboardPage() {
     },
   ];
 
-  const maxCapacity = 100;
-  const enrollmentProgress = Math.min((stats.enrollmentsCount / maxCapacity) * 100, 100);
+  const paidGoal = 100; // Objectif d'inscriptions payées
+  const paidProgress = Math.min((stats.paidEnrollments / paidGoal) * 100, 100);
 
   return (
     <div className="space-y-8">
@@ -63,10 +118,20 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
           <p className="text-muted-foreground mt-1">Bienvenue sur MPS Admin</p>
         </div>
-        <Badge variant="default" className="px-4 py-2 text-sm">
-          <TrendingUp className="h-4 w-4 mr-2" />
-          {stats.enrollmentsCount} inscriptions
-        </Badge>
+        <div className="flex gap-2">
+          <Badge variant="default" className="px-4 py-2 text-sm">
+            <TrendingUp className="h-4 w-4 mr-2" />
+            {stats.enrollmentsCount} inscriptions
+          </Badge>
+          <Badge variant="success" className="px-4 py-2 text-sm">
+            <CheckCircle className="h-4 w-4 mr-2" />
+            {stats.paidEnrollments} payés
+          </Badge>
+          <Badge variant="destructive" className="px-4 py-2 text-sm">
+            <XCircle className="h-4 w-4 mr-2" />
+            {stats.unpaidEnrollments} non payés
+          </Badge>
+        </div>
       </div>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -95,19 +160,36 @@ export default async function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-2">
           <CardHeader>
-            <CardTitle>Progression des inscriptions</CardTitle>
-            <CardDescription>Objectif : {maxCapacity} inscriptions</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-green-600" />
+              Progression des paiements
+            </CardTitle>
+            <CardDescription>Objectif : {paidGoal} inscriptions payées</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Inscriptions actuelles</span>
-              <span className="font-semibold">{stats.enrollmentsCount} / {maxCapacity}</span>
+              <span className="text-muted-foreground">Inscriptions payées</span>
+              <span className="font-semibold text-green-600">{stats.paidEnrollments} / {paidGoal}</span>
             </div>
-            <Progress value={enrollmentProgress} className="h-3" />
+            <Progress value={paidProgress} className="h-3" />
             <div className="flex items-center gap-4 pt-2">
-              <Badge variant="success">{stats.studentsCount} étudiants</Badge>
-              <Badge variant="info">{stats.coursesCount} cours</Badge>
-              <Badge variant="muted">{stats.coachesCount} coachs</Badge>
+              <Badge variant="success">{stats.paidEnrollments} payés</Badge>
+              <Badge variant="destructive">{stats.unpaidEnrollments} non payés</Badge>
+              <Badge variant="outline">{stats.enrollmentsCount} total</Badge>
+            </div>
+            <div className="grid grid-cols-3 gap-4 pt-2 border-t">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-green-600">{stats.paidEnrollments}</p>
+                <p className="text-xs text-muted-foreground">Places confirmées</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-orange-500">{stats.unpaidEnrollments}</p>
+                <p className="text-xs text-muted-foreground">En attente</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-bold text-primary">{paidGoal - stats.paidEnrollments > 0 ? paidGoal - stats.paidEnrollments : 0}</p>
+                <p className="text-xs text-muted-foreground">Places restantes</p>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -142,6 +224,114 @@ export default async function DashboardPage() {
                 Calendrier des cours
               </Link>
             </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Separator />
+
+      {/* Statistiques de paiement */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-green-600" />
+                Top cours (inscriptions payées)
+              </CardTitle>
+              <Badge variant="success">{stats.paidEnrollments} payés</Badge>
+            </div>
+            <CardDescription>Formations ayant reçu le plus d&apos;inscriptions payées</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stats.topPaidCourses.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">Aucune inscription payée</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cours</TableHead>
+                    <TableHead>Session</TableHead>
+                    <TableHead className="text-center">Payés</TableHead>
+                    <TableHead className="text-center">Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stats.topPaidCourses.map((course) => (
+                    <TableRow key={course.id}>
+                      <TableCell className="font-medium">
+                        <Link href={`/dashboard/courses/${course.id}`} className="hover:underline text-primary">
+                          {course.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{course.session.name}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="success">{course.enrollments.length}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline">{course._count.enrollments}</Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-amber-500" />
+                Étudiants multi-formations
+              </CardTitle>
+              <Badge variant="info">{stats.topStudents.length} étudiants</Badge>
+            </div>
+            <CardDescription>Étudiants ayant payé plusieurs formations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {stats.topStudents.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">Aucun étudiant avec plusieurs formations payées</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Étudiant</TableHead>
+                    <TableHead className="text-center">Formations payées</TableHead>
+                    <TableHead>Cours</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stats.topStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell className="font-medium">
+                        <Link href={`/dashboard/students/${student.id}`} className="hover:underline text-primary">
+                          {student.firstName} {student.lastName}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="success">{student.enrollments.length}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {student.enrollments.slice(0, 3).map((e) => (
+                            <Badge key={e.id} variant="outline" className="text-xs">
+                              {e.course.name}
+                            </Badge>
+                          ))}
+                          {student.enrollments.length > 3 && (
+                            <Badge variant="muted" className="text-xs">
+                              +{student.enrollments.length - 3}
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
       </div>

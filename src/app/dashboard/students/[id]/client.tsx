@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createOrUpdateEvaluation } from "@/app/actions/evaluations";
+import { markFirstInstallmentPaid, markFirstInstallmentUnpaid, markSecondInstallmentPaid, markSecondInstallmentUnpaid } from "@/app/actions/enrollments";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { BookOpen, Clock, ClipboardList } from "lucide-react";
+import { BookOpen, Clock, ClipboardList, Check, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
@@ -26,6 +27,13 @@ type Schedule = {
 type StudentEnrollment = {
   id: string;
   status: string;
+  vacation: string | null;
+  paidFirstInstallment: boolean;
+  paidFirstInstallmentAt: Date | null;
+  paidSecondInstallment: boolean;
+  paidSecondInstallmentAt: Date | null;
+  isPaid: boolean;
+  paidAt: Date | null;
   course: {
     id: string;
     name: string;
@@ -49,6 +57,12 @@ export function StudentEnrollmentsClient({ student }: { student: Student }) {
   const [selectedEnrollment, setSelectedEnrollment] = useState<StudentEnrollment | null>(null);
   const [evalData, setEvalData] = useState({ grade: "", observation: "" });
   const router = useRouter();
+
+  const vacationLabels: Record<string, string> = {
+    "avant-midi": "Avant-midi (06h00 - 08h30)",
+    "apres-midi": "Après-midi (16h30 - 19h00)",
+    "samedi": "Séance pratique Samedi (08h00 - 10h30)",
+  };
 
   const openEvalModal = (enrollment: StudentEnrollment) => {
     setSelectedEnrollment(enrollment);
@@ -99,9 +113,12 @@ export function StudentEnrollmentsClient({ student }: { student: Student }) {
                 <TableRow>
                   <TableHead>Cours</TableHead>
                   <TableHead>Session</TableHead>
+                  <TableHead>Vacation</TableHead>
                   <TableHead>Coach</TableHead>
                   <TableHead>Séances</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead>1ère Tranche</TableHead>
+                  <TableHead>2ème Tranche</TableHead>
                   <TableHead>Note</TableHead>
                   <TableHead>Observation</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -119,6 +136,15 @@ export function StudentEnrollmentsClient({ student }: { student: Student }) {
                       </Link>
                     </TableCell>
                     <TableCell>{enrollment.course.session.name}</TableCell>
+                    <TableCell>
+                      {enrollment.vacation ? (
+                        <Badge variant="outline" className="text-xs">
+                          {vacationLabels[enrollment.vacation] || enrollment.vacation}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       {enrollment.course.coach.firstName} {enrollment.course.coach.lastName}
                     </TableCell>
@@ -159,6 +185,48 @@ export function StudentEnrollmentsClient({ student }: { student: Student }) {
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      <div className="flex items-center gap-2">
+                        {enrollment.paidFirstInstallment ? (
+                          <Badge variant="success" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markFirstInstallmentUnpaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <Check className="h-3 w-3" />
+                            Payée
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markFirstInstallmentPaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <X className="h-3 w-3" />
+                            Non payée
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {enrollment.paidSecondInstallment ? (
+                          <Badge variant="success" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markSecondInstallmentUnpaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <Check className="h-3 w-3" />
+                            Payée
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markSecondInstallmentPaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <X className="h-3 w-3" />
+                            Non payée
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       {enrollment.evaluation?.grade !== null && enrollment.evaluation?.grade !== undefined ? (
                         <Badge
                           variant={
@@ -181,20 +249,27 @@ export function StudentEnrollmentsClient({ student }: { student: Student }) {
                       {enrollment.evaluation?.observation || "-"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEvalModal(enrollment)}
-                          >
-                            <ClipboardList className="h-4 w-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {enrollment.evaluation ? "Modifier l'évaluation" : "Évaluer"}
-                        </TooltipContent>
-                      </Tooltip>
+                      <div className="flex justify-end space-x-1">
+                        {enrollment.isPaid && (
+                          <Badge variant="success" className="mr-2">
+                            Totalité
+                          </Badge>
+                        )}
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEvalModal(enrollment)}
+                            >
+                              <ClipboardList className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {enrollment.evaluation ? "Modifier l'évaluation" : "Évaluer"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

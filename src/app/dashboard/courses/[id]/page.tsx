@@ -12,7 +12,7 @@ import { CourseEnrollmentsClient } from "./client";
 import { CourseActionsClient } from "./course-actions";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowLeft, Clock, MapPin, User, Users, BookOpen, Calendar, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Clock, MapPin, User, Users, BookOpen, Calendar, Image as ImageIcon, CheckCircle, XCircle } from "lucide-react";
 
 export default async function CourseDetailPage({
   params,
@@ -30,7 +30,18 @@ export default async function CourseDetailPage({
     notFound();
   }
 
-  const enrollmentProgress = (course.enrollments.length / course.maxStudents) * 100;
+  // Statistiques de paiement par tranche
+  const fullyPaidEnrollments = course.enrollments.filter((e: { isPaid: boolean }) => e.isPaid);
+  const firstInstallmentOnly = course.enrollments.filter((e: { paidFirstInstallment: boolean; paidSecondInstallment: boolean }) => 
+    e.paidFirstInstallment && !e.paidSecondInstallment
+  );
+  const secondInstallmentOnly = course.enrollments.filter((e: { paidFirstInstallment: boolean; paidSecondInstallment: boolean }) => 
+    !e.paidFirstInstallment && e.paidSecondInstallment
+  );
+  const unpaidEnrollments = course.enrollments.filter((e: { paidFirstInstallment: boolean; paidSecondInstallment: boolean }) => 
+    !e.paidFirstInstallment && !e.paidSecondInstallment
+  );
+  const paidProgress = (fullyPaidEnrollments.length / course.maxStudents) * 100;
 
   return (
     <div className="space-y-6">
@@ -125,15 +136,33 @@ export default async function CourseDetailPage({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Étudiants inscrits</span>
-                <span className="text-2xl font-bold text-primary">{course.enrollments.length} / {course.maxStudents}</span>
+                <span className="text-muted-foreground">Totalité payée</span>
+                <span className="text-2xl font-bold text-green-600">{fullyPaidEnrollments.length} / {course.maxStudents}</span>
               </div>
-              <Progress value={enrollmentProgress} className="h-3" />
+              <Progress value={paidProgress} className="h-3" />
               <div className="flex justify-between text-sm">
-                <Badge variant={enrollmentProgress >= 100 ? "destructive" : "success"}>
-                  {course.maxStudents - course.enrollments.length} places disponibles
+                <Badge variant={paidProgress >= 100 ? "destructive" : "success"}>
+                  {course.maxStudents - fullyPaidEnrollments.length} places disponibles
                 </Badge>
-                <span className="text-muted-foreground">{enrollmentProgress.toFixed(0)}% rempli</span>
+                <span className="text-muted-foreground">{paidProgress.toFixed(0)}% rempli</span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 pt-2 border-t text-center">
+                <div>
+                  <p className="text-lg font-bold text-green-600">{fullyPaidEnrollments.length}</p>
+                  <p className="text-xs text-muted-foreground">Totalité</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-blue-500">{firstInstallmentOnly.length}</p>
+                  <p className="text-xs text-muted-foreground">1ère tranche</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-orange-500">{unpaidEnrollments.length}</p>
+                  <p className="text-xs text-muted-foreground">Non payés</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-primary">{course.enrollments.length}</p>
+                  <p className="text-xs text-muted-foreground">Total</p>
+                </div>
               </div>
             </CardContent>
           </Card>

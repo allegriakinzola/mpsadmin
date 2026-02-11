@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { handleCors, withCors } from "@/lib/cors";
+import { sendWelcomeEmail } from "@/lib/email";
 
 export async function OPTIONS(request: NextRequest) {
   return handleCors(request) || new NextResponse(null, { status: 204 });
@@ -65,6 +66,13 @@ export async function POST(request: NextRequest) {
         expectations,
         preferredSchedule,
       },
+    });
+
+    // Envoyer l'email de bienvenue
+    await sendWelcomeEmail({
+      firstName,
+      lastName,
+      email,
     });
 
     return withCors(

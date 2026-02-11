@@ -18,33 +18,40 @@ import {
   CalendarDays,
   Menu,
   X,
+  UserCog,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
+import { useUserRole } from "@/hooks/use-user-role";
 
 const navigation = [
-  { name: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Sessions", href: "/dashboard/sessions", icon: Calendar },
-  { name: "Cours", href: "/dashboard/courses", icon: BookOpen },
-  { name: "Coachs", href: "/dashboard/coaches", icon: Users },
-  { name: "Étudiants", href: "/dashboard/students", icon: GraduationCap },
-  { name: "Évaluations", href: "/dashboard/evaluations", icon: ClipboardList },
-  { name: "Calendrier", href: "/dashboard/calendar", icon: CalendarDays },
+  { name: "Tableau de bord", href: "/dashboard", icon: LayoutDashboard, adminOnly: false },
+  { name: "Sessions", href: "/dashboard/sessions", icon: Calendar, adminOnly: false },
+  { name: "Cours", href: "/dashboard/courses", icon: BookOpen, adminOnly: false },
+  { name: "Coachs", href: "/dashboard/coaches", icon: Users, adminOnly: false },
+  { name: "Étudiants", href: "/dashboard/students", icon: GraduationCap, adminOnly: false },
+  { name: "Évaluations", href: "/dashboard/evaluations", icon: ClipboardList, adminOnly: false },
+  { name: "Calendrier", href: "/dashboard/calendar", icon: CalendarDays, adminOnly: false },
+  { name: "Utilisateurs", href: "/dashboard/users", icon: UserCog, adminOnly: true },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { isAdmin } = useUserRole();
 
   const handleSignOut = async () => {
     await signOut();
     router.push("/login");
   };
 
+  // Filtrer les liens selon le rôle
+  const filteredNavigation = navigation.filter(item => !item.adminOnly || isAdmin);
+
   return (
     <>
       <nav className="flex-1 space-y-1 px-3 py-4">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link

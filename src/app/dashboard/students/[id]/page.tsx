@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Phone, MapPin, BookOpen, ClipboardList, GraduationCap, TrendingUp, CreditCard, Clock } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, BookOpen, ClipboardList, GraduationCap, TrendingUp, CreditCard, Clock, CheckCircle, XCircle } from "lucide-react";
 import { StudentEnrollmentsClient } from "./client";
 
 export default async function StudentDetailPage({
@@ -26,6 +26,8 @@ export default async function StudentDetailPage({
   };
 
   const evaluationsCount = student.enrollments.filter((e) => e.evaluation).length;
+  const paidEnrollments = student.enrollments.filter((e) => e.isPaid);
+  const unpaidEnrollments = student.enrollments.filter((e) => !e.isPaid);
 
   return (
     <div className="space-y-6">
@@ -49,9 +51,18 @@ export default async function StudentDetailPage({
             {student.email}
           </p>
         </div>
-        <Badge variant="outline" className="text-base px-4 py-2">
-          {student.enrollments.length} cours
-        </Badge>
+        <div className="flex gap-2">
+          <Badge variant="success" className="text-base px-4 py-2">
+            <CheckCircle className="h-4 w-4 mr-1" />
+            {paidEnrollments.length} payé(s)
+          </Badge>
+          {unpaidEnrollments.length > 0 && (
+            <Badge variant="destructive" className="text-base px-4 py-2">
+              <XCircle className="h-4 w-4 mr-1" />
+              {unpaidEnrollments.length} non payé(s)
+            </Badge>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -125,6 +136,63 @@ export default async function StudentDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      {/* Résumé des paiements */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CreditCard className="h-4 w-4 text-primary" />
+            Résumé des paiements
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Cours payés */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-green-600 font-medium">
+                <CheckCircle className="h-4 w-4" />
+                Cours payés ({paidEnrollments.length})
+              </div>
+              {paidEnrollments.length === 0 ? (
+                <p className="text-sm text-muted-foreground pl-6">Aucun cours payé</p>
+              ) : (
+                <div className="space-y-1 pl-6">
+                  {paidEnrollments.map((e) => (
+                    <div key={e.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-green-50 dark:bg-green-950/20">
+                      <Link href={`/dashboard/courses/${e.course.id}`} className="text-primary hover:underline font-medium">
+                        {e.course.name}
+                      </Link>
+                      <Badge variant="success" className="text-xs">Payé</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Cours non payés */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-red-600 font-medium">
+                <XCircle className="h-4 w-4" />
+                Cours non payés ({unpaidEnrollments.length})
+              </div>
+              {unpaidEnrollments.length === 0 ? (
+                <p className="text-sm text-muted-foreground pl-6">Tous les cours sont payés</p>
+              ) : (
+                <div className="space-y-1 pl-6">
+                  {unpaidEnrollments.map((e) => (
+                    <div key={e.id} className="flex items-center justify-between text-sm p-2 rounded-lg bg-red-50 dark:bg-red-950/20">
+                      <Link href={`/dashboard/courses/${e.course.id}`} className="text-primary hover:underline font-medium">
+                        {e.course.name}
+                      </Link>
+                      <Badge variant="destructive" className="text-xs">Non payé</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Separator />
 

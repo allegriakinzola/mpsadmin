@@ -122,8 +122,11 @@ export default function StudentsPage() {
     setIsModalOpen(true);
   };
 
+  const [formError, setFormError] = useState("");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError("");
 
     if (editingStudent) {
       await updateStudent(editingStudent.id, {
@@ -138,8 +141,10 @@ export default function StudentsPage() {
         expectations: formData.expectations || undefined,
         preferredSchedule: formData.preferredSchedule || undefined,
       });
+      setIsModalOpen(false);
+      loadStudents();
     } else {
-      await createStudent({
+      const result = await createStudent({
         firstName: formData.firstName,
         lastName: formData.lastName,
         email: formData.email,
@@ -151,10 +156,15 @@ export default function StudentsPage() {
         expectations: formData.expectations || undefined,
         preferredSchedule: formData.preferredSchedule || undefined,
       });
-    }
 
-    setIsModalOpen(false);
-    loadStudents();
+      if (!result.success) {
+        setFormError(result.error || "Erreur lors de la création");
+        return;
+      }
+
+      setIsModalOpen(false);
+      loadStudents();
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -349,6 +359,11 @@ export default function StudentsPage() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {formError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {formError}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="lastName">Nom *</Label>

@@ -10,20 +10,13 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ImageUpload } from "@/components/ui/image-upload";
-import { Pencil, Trash2, Plus, X } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Coach = {
   id: string;
   firstName: string;
   lastName: string;
-};
-
-type Schedule = {
-  id: string;
-  date: Date;
-  startTime: Date;
-  endTime: Date;
 };
 
 type Course = {
@@ -33,15 +26,18 @@ type Course = {
   imageUrl: string | null;
   location: string | null;
   maxStudents: number;
+  sessionsPerDay: number;
+  weekDays: string[];
+  vacations: string[];
+  startDate: Date | null;
+  endDate: Date | null;
   coachId: string;
   sessionId: string;
-  schedules: Schedule[];
 };
 
-type ScheduleInput = {
-  date: string;
-  startTime: string;
-  endTime: string;
+const formatDateForInput = (date: Date | null) => {
+  if (!date) return "";
+  return new Date(date).toISOString().split("T")[0];
 };
 
 export function CourseActionsClient({
@@ -55,14 +51,21 @@ export function CourseActionsClient({
   const [isDeleting, setIsDeleting] = useState(false);
   const router = useRouter();
 
-  const formatDateForInput = (date: Date) => {
-    return new Date(date).toISOString().split("T")[0];
-  };
+  const weekDayOptions = [
+    { value: "lundi", label: "Lundi" },
+    { value: "mardi", label: "Mardi" },
+    { value: "mercredi", label: "Mercredi" },
+    { value: "jeudi", label: "Jeudi" },
+    { value: "vendredi", label: "Vendredi" },
+    { value: "samedi", label: "Samedi" },
+    { value: "dimanche", label: "Dimanche" },
+  ];
 
-  const formatTimeForInput = (date: Date) => {
-    const d = new Date(date);
-    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
-  };
+  const vacationOptions = [
+    { value: "avant-midi", label: "Avant-midi (06h00 - 08h30)" },
+    { value: "apres-midi", label: "Après-midi (16h30 - 19h00)" },
+    { value: "samedi", label: "Séance pratique Samedi (08h00 - 10h30)" },
+  ];
 
   const [formData, setFormData] = useState({
     name: course.name,
@@ -70,41 +73,49 @@ export function CourseActionsClient({
     imageUrl: course.imageUrl || "",
     location: course.location || "",
     maxStudents: course.maxStudents.toString(),
+    sessionsPerDay: course.sessionsPerDay.toString(),
+    weekDays: course.weekDays || [],
+    vacations: course.vacations || [],
+    startDate: formatDateForInput(course.startDate),
+    endDate: formatDateForInput(course.endDate),
     coachId: course.coachId,
   });
 
-  const [schedules, setSchedules] = useState<ScheduleInput[]>(
-    course.schedules.map((s) => ({
-      date: formatDateForInput(s.date),
-      startTime: formatTimeForInput(s.startTime),
-      endTime: formatTimeForInput(s.endTime),
-    }))
-  );
-
-  const addSchedule = () => {
-    setSchedules([...schedules, { date: "", startTime: "09:00", endTime: "10:00" }]);
+  const toggleWeekDay = (day: string) => {
+    setFormData(prev => ({
+      ...prev,
+      weekDays: prev.weekDays.includes(day)
+        ? prev.weekDays.filter(d => d !== day)
+        : [...prev.weekDays, day]
+    }));
   };
 
-  const removeSchedule = (index: number) => {
-    setSchedules(schedules.filter((_, i) => i !== index));
-  };
-
-  const updateSchedule = (index: number, field: keyof ScheduleInput, value: string) => {
-    const newSchedules = [...schedules];
-    newSchedules[index][field] = value;
-    setSchedules(newSchedules);
+  const toggleVacation = (vacation: string) => {
+    setFormData(prev => ({
+      ...prev,
+      vacations: prev.vacations.includes(vacation)
+        ? prev.vacations.filter(v => v !== vacation)
+        : [...prev.vacations, vacation]
+    }));
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const schedulesData = schedules
-      .filter((s) => s.date && s.startTime && s.endTime)
-      .map((s) => ({
-        date: new Date(s.date),
-        startTime: new Date(`${s.date}T${s.startTime}:00`),
-        endTime: new Date(`${s.date}T${s.endTime}:00`),
-      }));
+    if (formData.weekDays.length === 0) {
+      alert("Veuillez sélectionner au moins un jour de la semaine.");
+      return;
+    }
+
+    if (formData.vacations.length === 0) {
+      alert("Veuillez sélectionner au moins une vacation.");
+      return;
+    }
+
+    if (!formData.startDate || !formData.endDate) {
+      alert("Veuillez sélectionner les dates de début et de fin.");
+      return;
+    }
 
     await updateCourse(course.id, {
       name: formData.name,
@@ -112,8 +123,13 @@ export function CourseActionsClient({
       imageUrl: formData.imageUrl || undefined,
       location: formData.location || undefined,
       maxStudents: parseInt(formData.maxStudents),
+      sessionsPerDay: parseInt(formData.sessionsPerDay),
+      weekDays: formData.weekDays,
+      vacations: formData.vacations,
+      startDate: new Date(formData.startDate),
+      endDate: new Date(formData.endDate),
       coachId: formData.coachId,
-      schedules: schedulesData,
+      regenerateSchedules: true,
     });
 
     setIsEditModalOpen(false);
@@ -133,15 +149,13 @@ export function CourseActionsClient({
       imageUrl: course.imageUrl || "",
       location: course.location || "",
       maxStudents: course.maxStudents.toString(),
+      sessionsPerDay: course.sessionsPerDay.toString(),
+      weekDays: course.weekDays || [],
+      vacations: course.vacations || [],
+      startDate: formatDateForInput(course.startDate),
+      endDate: formatDateForInput(course.endDate),
       coachId: course.coachId,
     });
-    setSchedules(
-      course.schedules.map((s) => ({
-        date: formatDateForInput(s.date),
-        startTime: formatTimeForInput(s.startTime),
-        endTime: formatTimeForInput(s.endTime),
-      }))
-    );
     setIsEditModalOpen(true);
   };
 
@@ -236,76 +250,92 @@ export function CourseActionsClient({
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="maxStudents">Capacité max</Label>
+                <Input
+                  id="maxStudents"
+                  type="number"
+                  min="1"
+                  value={formData.maxStudents}
+                  onChange={(e) => setFormData({ ...formData, maxStudents: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sessionsPerDay">Séances/jour</Label>
+                <Input
+                  id="sessionsPerDay"
+                  type="number"
+                  min="1"
+                  max="5"
+                  value={formData.sessionsPerDay}
+                  onChange={(e) => setFormData({ ...formData, sessionsPerDay: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Date de début *</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate">Date de fin *</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="maxStudents">Nombre max d&apos;étudiants</Label>
-              <Input
-                id="maxStudents"
-                type="number"
-                min="1"
-                value={formData.maxStudents}
-                onChange={(e) => setFormData({ ...formData, maxStudents: e.target.value })}
-              />
+              <Label>Jours de la semaine *</Label>
+              <div className="flex flex-wrap gap-2">
+                {weekDayOptions.map((day) => (
+                  <Button
+                    key={day.value}
+                    type="button"
+                    variant={formData.weekDays.includes(day.value) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleWeekDay(day.value)}
+                  >
+                    {day.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Vacations disponibles *</Label>
+              <div className="flex flex-wrap gap-2">
+                {vacationOptions.map((vacation) => (
+                  <Button
+                    key={vacation.value}
+                    type="button"
+                    variant={formData.vacations.includes(vacation.value) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleVacation(vacation.value)}
+                    className="text-xs"
+                  >
+                    {vacation.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <ImageUpload
               value={formData.imageUrl}
               onChange={(url) => setFormData({ ...formData, imageUrl: url })}
             />
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Dates et horaires</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addSchedule}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Ajouter une date
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                {schedules.map((schedule, index) => (
-                  <div key={index} className="flex items-end gap-2 p-3 border rounded-lg bg-muted/30">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs">Date</Label>
-                      <Input
-                        type="date"
-                        value={schedule.date}
-                        onChange={(e) => updateSchedule(index, "date", e.target.value)}
-                      />
-                    </div>
-                    <div className="w-28 space-y-1">
-                      <Label className="text-xs">Début</Label>
-                      <Input
-                        type="time"
-                        value={schedule.startTime}
-                        onChange={(e) => updateSchedule(index, "startTime", e.target.value)}
-                      />
-                    </div>
-                    <div className="w-28 space-y-1">
-                      <Label className="text-xs">Fin</Label>
-                      <Input
-                        type="time"
-                        value={schedule.endTime}
-                        onChange={(e) => updateSchedule(index, "endTime", e.target.value)}
-                      />
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeSchedule(index)}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-                {schedules.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Aucune séance programmée. Cliquez sur &quot;Ajouter une date&quot; pour en créer.
-                  </p>
-                )}
-              </div>
-            </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>

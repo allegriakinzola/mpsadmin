@@ -16,6 +16,7 @@ model User {
   email         String    @unique
   emailVerified Boolean   @default(false)
   image         String?
+  role          String    @default("admin") // admin, agent
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   sessions      Session[]
@@ -103,20 +104,25 @@ model CourseSession {
 }
 
 model Course {
-  id          String           @id @default(cuid())
-  name        String
-  description String?
-  imageUrl    String?
-  location    String?          // Lieu (en ligne ou physique)
-  maxStudents Int              @default(30)
-  sessionId   String
-  session     CourseSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  coachId     String
-  coach       Coach            @relation(fields: [coachId], references: [id])
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  enrollments Enrollment[]
-  schedules   CourseSchedule[]
+  id             String           @id @default(cuid())
+  name           String
+  description    String?
+  imageUrl       String?
+  location       String?          // Lieu (en ligne ou physique)
+  maxStudents    Int              @default(30)
+  sessionsPerDay Int              @default(1)    // Nombre de séances par jour (1, 2, 3...)
+  weekDays       String[]         @default([])   // Jours de la semaine ["lundi", "mardi", "mercredi"...]
+  vacations      String[]         @default([])   // Vacations disponibles ["avant-midi", "apres-midi", "samedi"]
+  startDate      DateTime?                       // Date de début du cours
+  endDate        DateTime?                       // Date de fin du cours
+  sessionId      String
+  session        CourseSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  coachId        String
+  coach          Coach            @relation(fields: [coachId], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  enrollments    Enrollment[]
+  schedules      CourseSchedule[]
 }
 
 model CourseSchedule {
@@ -131,14 +137,21 @@ model CourseSchedule {
 }
 
 model Enrollment {
-  id         String      @id @default(cuid())
-  studentId  String
-  student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  courseId   String
-  course     Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  enrolledAt DateTime    @default(now())
-  status     String      @default("active") // active, completed, dropped
-  evaluation Evaluation?
+  id                     String      @id @default(cuid())
+  studentId              String
+  student                Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  courseId               String
+  course                 Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrolledAt             DateTime    @default(now())
+  status                 String      @default("active") // active, completed, dropped
+  vacation               String?                        // avant-midi, apres-midi, samedi
+  paidFirstInstallment   Boolean     @default(false)    // Première tranche payée
+  paidFirstInstallmentAt DateTime?                      // Date du paiement 1ère tranche
+  paidSecondInstallment  Boolean     @default(false)    // Deuxième tranche payée
+  paidSecondInstallmentAt DateTime?                     // Date du paiement 2ème tranche
+  isPaid                 Boolean     @default(false)    // Totalité payée (calculé: 1ère + 2ème)
+  paidAt                 DateTime?                      // Date du paiement complet
+  evaluation             Evaluation?
 
   @@unique([studentId, courseId])
 }

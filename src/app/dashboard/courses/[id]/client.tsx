@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { enrollStudent, unenrollStudent } from "@/app/actions/enrollments";
+import { enrollStudent, unenrollStudent, markFirstInstallmentPaid, markFirstInstallmentUnpaid, markSecondInstallmentPaid, markSecondInstallmentUnpaid } from "@/app/actions/enrollments";
 import { createOrUpdateEvaluation } from "@/app/actions/evaluations";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, ClipboardList } from "lucide-react";
+import { Plus, Trash2, ClipboardList, Check, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 type Student = {
@@ -32,6 +32,13 @@ type Enrollment = {
   id: string;
   student: Student;
   status: string;
+  vacation: string | null;
+  paidFirstInstallment: boolean;
+  paidFirstInstallmentAt: Date | null;
+  paidSecondInstallment: boolean;
+  paidSecondInstallmentAt: Date | null;
+  isPaid: boolean;
+  paidAt: Date | null;
   evaluation: Evaluation | null;
 };
 
@@ -39,6 +46,7 @@ type Course = {
   id: string;
   name: string;
   maxStudents: number;
+  vacations: string[];
   enrollments: Enrollment[];
 };
 
@@ -53,8 +61,15 @@ export function CourseEnrollmentsClient({
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
   const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState("");
+  const [selectedVacation, setSelectedVacation] = useState("");
   const [evalData, setEvalData] = useState({ grade: "", observation: "" });
   const router = useRouter();
+
+  const vacationLabels: Record<string, string> = {
+    "avant-midi": "Avant-midi (06h00 - 08h30)",
+    "apres-midi": "Après-midi (16h30 - 19h00)",
+    "samedi": "Séance pratique Samedi (08h00 - 10h30)",
+  };
 
   const enrolledStudentIds = course.enrollments.map((e) => e.student.id);
   const availableStudents = allStudents.filter(
@@ -69,9 +84,11 @@ export function CourseEnrollmentsClient({
       await enrollStudent({
         studentId: selectedStudentId,
         courseId: course.id,
+        vacation: selectedVacation || undefined,
       });
       setIsEnrollModalOpen(false);
       setSelectedStudentId("");
+      setSelectedVacation("");
       router.refresh();
     } catch (error) {
       alert("Erreur lors de l'inscription");
@@ -141,7 +158,10 @@ export function CourseEnrollmentsClient({
                 <TableRow>
                   <TableHead>Nom</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Vacation</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead>1ère Tranche</TableHead>
+                  <TableHead>2ème Tranche</TableHead>
                   <TableHead>Note</TableHead>
                   <TableHead>Observation</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -154,6 +174,15 @@ export function CourseEnrollmentsClient({
                       {enrollment.student.firstName} {enrollment.student.lastName}
                     </TableCell>
                     <TableCell>{enrollment.student.email}</TableCell>
+                    <TableCell>
+                      {enrollment.vacation ? (
+                        <Badge variant="outline">
+                          {vacationLabels[enrollment.vacation] || enrollment.vacation}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge
                         variant={
@@ -172,6 +201,48 @@ export function CourseEnrollmentsClient({
                       </Badge>
                     </TableCell>
                     <TableCell>
+                      <div className="flex items-center gap-2">
+                        {enrollment.paidFirstInstallment ? (
+                          <Badge variant="success" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markFirstInstallmentUnpaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <Check className="h-3 w-3" />
+                            Payée
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markFirstInstallmentPaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <X className="h-3 w-3" />
+                            Non payée
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {enrollment.paidSecondInstallment ? (
+                          <Badge variant="success" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markSecondInstallmentUnpaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <Check className="h-3 w-3" />
+                            Payée
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
+                            await markSecondInstallmentPaid(enrollment.id);
+                            router.refresh();
+                          }}>
+                            <X className="h-3 w-3" />
+                            Non payée
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
                       {enrollment.evaluation?.grade !== null
                         ? enrollment.evaluation?.grade
                         : "-"}
@@ -181,6 +252,11 @@ export function CourseEnrollmentsClient({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end space-x-2">
+                        {enrollment.isPaid && (
+                          <Badge variant="success" className="mr-2">
+                            Totalité payée
+                          </Badge>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -228,6 +304,24 @@ export function CourseEnrollmentsClient({
                 ))}
               </NativeSelect>
             </div>
+            {course.vacations && course.vacations.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="vacation">Vacation *</Label>
+                <NativeSelect
+                  id="vacation"
+                  value={selectedVacation}
+                  onChange={(e) => setSelectedVacation(e.target.value)}
+                  required
+                >
+                  <option value="">Sélectionner une vacation</option>
+                  {course.vacations.map((vacation) => (
+                    <option key={vacation} value={vacation}>
+                      {vacationLabels[vacation] || vacation}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+            )}
             <DialogFooter>
               <Button
                 type="button"

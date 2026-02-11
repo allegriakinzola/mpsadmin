@@ -51,12 +51,6 @@ type Session = {
   courses: Course[];
 };
 
-type ScheduleInput = {
-  date: string;
-  startTime: string;
-  endTime: string;
-};
-
 export function SessionCoursesClient({
   session,
   coaches,
@@ -74,49 +68,57 @@ export function SessionCoursesClient({
     location: "",
     maxStudents: "30",
     coachId: "",
+    sessionsPerDay: "1",
+    weekDays: [] as string[],
+    vacations: [] as string[],
+    startDate: "",
+    endDate: "",
   });
 
-  const [schedules, setSchedules] = useState<ScheduleInput[]>([
-    { date: "", startTime: "09:00", endTime: "10:00" }
-  ]);
+  const weekDayOptions = [
+    { value: "lundi", label: "Lundi" },
+    { value: "mardi", label: "Mardi" },
+    { value: "mercredi", label: "Mercredi" },
+    { value: "jeudi", label: "Jeudi" },
+    { value: "vendredi", label: "Vendredi" },
+    { value: "samedi", label: "Samedi" },
+    { value: "dimanche", label: "Dimanche" },
+  ];
 
-  const addSchedule = () => {
-    setSchedules([...schedules, { date: "", startTime: "09:00", endTime: "10:00" }]);
+  const vacationOptions = [
+    { value: "avant-midi", label: "Avant-midi (06h00 - 08h30)" },
+    { value: "apres-midi", label: "Après-midi (16h30 - 19h00)" },
+    { value: "samedi", label: "Séance pratique Samedi (08h00 - 10h30)" },
+  ];
+
+  const toggleWeekDay = (day: string) => {
+    setFormData(prev => ({
+      ...prev,
+      weekDays: prev.weekDays.includes(day)
+        ? prev.weekDays.filter(d => d !== day)
+        : [...prev.weekDays, day]
+    }));
   };
 
-  const removeSchedule = (index: number) => {
-    if (schedules.length > 1) {
-      setSchedules(schedules.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateSchedule = (index: number, field: keyof ScheduleInput, value: string) => {
-    const newSchedules = [...schedules];
-    newSchedules[index][field] = value;
-    setSchedules(newSchedules);
+  const toggleVacation = (vacation: string) => {
+    setFormData(prev => ({
+      ...prev,
+      vacations: prev.vacations.includes(vacation)
+        ? prev.vacations.filter(v => v !== vacation)
+        : [...prev.vacations, vacation]
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const schedulesData = schedules
-      .filter(s => s.date && s.startTime && s.endTime)
-      .map(s => {
-        const date = new Date(s.date);
-        
-        const startTime = new Date(s.date);
-        const [startHour, startMin] = s.startTime.split(":");
-        startTime.setHours(parseInt(startHour), parseInt(startMin), 0, 0);
+    if (formData.vacations.length === 0) {
+      alert("Veuillez sélectionner au moins une vacation.");
+      return;
+    }
 
-        const endTime = new Date(s.date);
-        const [endHour, endMin] = s.endTime.split(":");
-        endTime.setHours(parseInt(endHour), parseInt(endMin), 0, 0);
-
-        return { date, startTime, endTime };
-      });
-
-    if (schedulesData.length === 0) {
-      alert("Veuillez ajouter au moins une date de cours.");
+    if (!formData.startDate || !formData.endDate) {
+      alert("Veuillez sélectionner les dates de début et de fin.");
       return;
     }
 
@@ -126,9 +128,13 @@ export function SessionCoursesClient({
       imageUrl: formData.imageUrl || undefined,
       location: formData.location || undefined,
       maxStudents: parseInt(formData.maxStudents),
+      sessionsPerDay: parseInt(formData.sessionsPerDay),
+      weekDays: formData.weekDays,
+      vacations: formData.vacations,
+      startDate: new Date(formData.startDate),
+      endDate: new Date(formData.endDate),
       sessionId: session.id,
       coachId: formData.coachId,
-      schedules: schedulesData,
     });
 
     setIsModalOpen(false);
@@ -139,8 +145,12 @@ export function SessionCoursesClient({
       location: "",
       maxStudents: "30",
       coachId: "",
+      sessionsPerDay: "1",
+      weekDays: [],
+      vacations: [],
+      startDate: "",
+      endDate: "",
     });
-    setSchedules([{ date: "", startTime: "09:00", endTime: "10:00" }]);
     router.refresh();
   };
 
@@ -348,7 +358,7 @@ export function SessionCoursesClient({
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="location">Lieu</Label>
                 <Input
@@ -368,67 +378,81 @@ export function SessionCoursesClient({
                   onChange={(e) => setFormData({ ...formData, maxStudents: e.target.value })}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="sessionsPerDay">Séances/jour</Label>
+                <Input
+                  id="sessionsPerDay"
+                  type="number"
+                  min="1"
+                  max="5"
+                  value={formData.sessionsPerDay}
+                  onChange={(e) => setFormData({ ...formData, sessionsPerDay: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Date de début *</Label>
+                <Input
+                  id="startDate"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate">Date de fin *</Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Jours de la semaine *</Label>
+              <div className="flex flex-wrap gap-2">
+                {weekDayOptions.map((day) => (
+                  <Button
+                    key={day.value}
+                    type="button"
+                    variant={formData.weekDays.includes(day.value) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleWeekDay(day.value)}
+                  >
+                    {day.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Vacations disponibles *</Label>
+              <div className="flex flex-wrap gap-2">
+                {vacationOptions.map((vacation) => (
+                  <Button
+                    key={vacation.value}
+                    type="button"
+                    variant={formData.vacations.includes(vacation.value) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleVacation(vacation.value)}
+                    className="text-xs"
+                  >
+                    {vacation.label}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             <ImageUpload
               value={formData.imageUrl}
               onChange={(url) => setFormData({ ...formData, imageUrl: url })}
             />
-
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Dates et horaires *</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addSchedule}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  Ajouter une date
-                </Button>
-              </div>
-              
-              <div className="space-y-3">
-                {schedules.map((schedule, index) => (
-                  <div key={index} className="flex items-end gap-2 p-3 border rounded-lg bg-muted/30">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs">Date</Label>
-                      <Input
-                        type="date"
-                        value={schedule.date}
-                        onChange={(e) => updateSchedule(index, "date", e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="w-28 space-y-1">
-                      <Label className="text-xs">Début</Label>
-                      <Input
-                        type="time"
-                        value={schedule.startTime}
-                        onChange={(e) => updateSchedule(index, "startTime", e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="w-28 space-y-1">
-                      <Label className="text-xs">Fin</Label>
-                      <Input
-                        type="time"
-                        value={schedule.endTime}
-                        onChange={(e) => updateSchedule(index, "endTime", e.target.value)}
-                        required
-                      />
-                    </div>
-                    {schedules.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeSchedule(index)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
