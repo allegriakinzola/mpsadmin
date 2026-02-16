@@ -78,34 +78,65 @@ export async function updateEnrollmentStatus(
   return enrollment;
 }
 
-export async function markFirstInstallmentPaid(enrollmentId: string) {
-  const current = await prisma.enrollment.findUnique({ where: { id: enrollmentId } });
+export async function markFirstInstallmentPaid(enrollmentId: string, recordedBy?: string) {
+  const current = await prisma.enrollment.findUnique({ 
+    where: { id: enrollmentId },
+    include: { course: true, student: true },
+  });
   if (!current) throw new Error("Inscription non trouvée");
 
   const paidSecond = current.paidSecondInstallment;
   const isFullyPaid = paidSecond; // Si 2ème tranche déjà payée, alors totalité payée
+  
+  // Calculer le montant de la 1ère tranche (40% du prix, arrondi)
+  const firstInstallmentAmount = Math.round(current.course.price * 0.4);
 
   const enrollment = await prisma.enrollment.update({
     where: { id: enrollmentId },
     data: { 
       paidFirstInstallment: true,
       paidFirstInstallmentAt: new Date(),
+      firstInstallmentAmount: firstInstallmentAmount,
       isPaid: isFullyPaid,
       paidAt: isFullyPaid ? new Date() : null,
     },
   });
+
+  // Enregistrer dans la trésorerie
+  await prisma.treasuryEntry.create({
+    data: {
+      enrollmentId,
+      amount: firstInstallmentAmount,
+      type: "income",
+      category: "first_installment",
+      description: `1ère tranche - ${current.course.name} - ${current.student.firstName} ${current.student.lastName}`,
+      paymentMethod: "cash",
+      recordedBy,
+    },
+  });
+
   revalidatePath("/dashboard/courses");
   revalidatePath("/dashboard/students");
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/treasury");
   return enrollment;
 }
 
 export async function markFirstInstallmentUnpaid(enrollmentId: string) {
+  // Supprimer l'entrée de trésorerie correspondante
+  await prisma.treasuryEntry.deleteMany({
+    where: {
+      enrollmentId,
+      category: "first_installment",
+    },
+  });
+
   const enrollment = await prisma.enrollment.update({
     where: { id: enrollmentId },
     data: { 
       paidFirstInstallment: false,
       paidFirstInstallmentAt: null,
+      firstInstallmentAmount: null,
       isPaid: false,
       paidAt: null,
     },
@@ -113,37 +144,69 @@ export async function markFirstInstallmentUnpaid(enrollmentId: string) {
   revalidatePath("/dashboard/courses");
   revalidatePath("/dashboard/students");
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/treasury");
   return enrollment;
 }
 
-export async function markSecondInstallmentPaid(enrollmentId: string) {
-  const current = await prisma.enrollment.findUnique({ where: { id: enrollmentId } });
+export async function markSecondInstallmentPaid(enrollmentId: string, recordedBy?: string) {
+  const current = await prisma.enrollment.findUnique({ 
+    where: { id: enrollmentId },
+    include: { course: true, student: true },
+  });
   if (!current) throw new Error("Inscription non trouvée");
 
   const paidFirst = current.paidFirstInstallment;
   const isFullyPaid = paidFirst; // Si 1ère tranche déjà payée, alors totalité payée
+  
+  // Calculer le montant de la 2ème tranche (60% du prix, arrondi)
+  const secondInstallmentAmount = Math.round(current.course.price * 0.6);
 
   const enrollment = await prisma.enrollment.update({
     where: { id: enrollmentId },
     data: { 
       paidSecondInstallment: true,
       paidSecondInstallmentAt: new Date(),
+      secondInstallmentAmount: secondInstallmentAmount,
       isPaid: isFullyPaid,
       paidAt: isFullyPaid ? new Date() : null,
     },
   });
+
+  // Enregistrer dans la trésorerie
+  await prisma.treasuryEntry.create({
+    data: {
+      enrollmentId,
+      amount: secondInstallmentAmount,
+      type: "income",
+      category: "second_installment",
+      description: `2ème tranche - ${current.course.name} - ${current.student.firstName} ${current.student.lastName}`,
+      paymentMethod: "cash",
+      recordedBy,
+    },
+  });
+
   revalidatePath("/dashboard/courses");
   revalidatePath("/dashboard/students");
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/treasury");
   return enrollment;
 }
 
 export async function markSecondInstallmentUnpaid(enrollmentId: string) {
+  // Supprimer l'entrée de trésorerie correspondante
+  await prisma.treasuryEntry.deleteMany({
+    where: {
+      enrollmentId,
+      category: "second_installment",
+    },
+  });
+
   const enrollment = await prisma.enrollment.update({
     where: { id: enrollmentId },
     data: { 
       paidSecondInstallment: false,
       paidSecondInstallmentAt: null,
+      secondInstallmentAmount: null,
       isPaid: false,
       paidAt: null,
     },
@@ -151,6 +214,7 @@ export async function markSecondInstallmentUnpaid(enrollmentId: string) {
   revalidatePath("/dashboard/courses");
   revalidatePath("/dashboard/students");
   revalidatePath("/dashboard");
+  revalidatePath("/dashboard/treasury");
   return enrollment;
 }
 

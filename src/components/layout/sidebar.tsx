@@ -19,6 +19,7 @@ import {
   Menu,
   X,
   UserCog,
+  Wallet,
 } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
@@ -32,6 +33,7 @@ const navigation = [
   { name: "Étudiants", href: "/dashboard/students", icon: GraduationCap, adminOnly: false },
   { name: "Évaluations", href: "/dashboard/evaluations", icon: ClipboardList, adminOnly: false },
   { name: "Calendrier", href: "/dashboard/calendar", icon: CalendarDays, adminOnly: false },
+  { name: "Trésorerie", href: "/dashboard/treasury", icon: Wallet, adminOnly: true },
   { name: "Utilisateurs", href: "/dashboard/users", icon: UserCog, adminOnly: true },
 ];
 

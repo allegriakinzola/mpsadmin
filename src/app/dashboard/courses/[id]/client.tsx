@@ -12,8 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, ClipboardList, Check, X } from "lucide-react";
+import { Plus, Trash2, ClipboardList, Check, X, CreditCard } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { PaymentDialog } from "@/components/payment-dialog";
 
 type Student = {
   id: string;
@@ -45,6 +46,7 @@ type Enrollment = {
 type Course = {
   id: string;
   name: string;
+  price: number;
   maxStudents: number;
   vacations: string[];
   enrollments: Enrollment[];
@@ -59,11 +61,19 @@ export function CourseEnrollmentsClient({
 }) {
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [selectedEnrollment, setSelectedEnrollment] = useState<Enrollment | null>(null);
+  const [selectedInstallment, setSelectedInstallment] = useState<1 | 2>(1);
   const [selectedStudentId, setSelectedStudentId] = useState("");
   const [selectedVacation, setSelectedVacation] = useState("");
   const [evalData, setEvalData] = useState({ grade: "", observation: "" });
   const router = useRouter();
+
+  const openPaymentModal = (enrollment: Enrollment, installment: 1 | 2) => {
+    setSelectedEnrollment(enrollment);
+    setSelectedInstallment(installment);
+    setIsPaymentModalOpen(true);
+  };
 
   const vacationLabels: Record<string, string> = {
     "avant-midi": "Avant-midi (06h00 - 08h30)",
@@ -208,16 +218,27 @@ export function CourseEnrollmentsClient({
                             router.refresh();
                           }}>
                             <Check className="h-3 w-3" />
-                            Payée
+                            {Math.round(course.price * 0.4)} USD
                           </Badge>
                         ) : (
-                          <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
-                            await markFirstInstallmentPaid(enrollment.id);
-                            router.refresh();
-                          }}>
-                            <X className="h-3 w-3" />
-                            Non payée
-                          </Badge>
+                          <>
+                            <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
+                              await markFirstInstallmentPaid(enrollment.id);
+                              router.refresh();
+                            }}>
+                              <X className="h-3 w-3" />
+                              {Math.round(course.price * 0.4)} USD
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => openPaymentModal(enrollment, 1)}
+                            >
+                              <CreditCard className="h-3 w-3 mr-1" />
+                              EasyPay
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -229,16 +250,27 @@ export function CourseEnrollmentsClient({
                             router.refresh();
                           }}>
                             <Check className="h-3 w-3" />
-                            Payée
+                            {Math.round(course.price * 0.6)} USD
                           </Badge>
                         ) : (
-                          <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
-                            await markSecondInstallmentPaid(enrollment.id);
-                            router.refresh();
-                          }}>
-                            <X className="h-3 w-3" />
-                            Non payée
-                          </Badge>
+                          <>
+                            <Badge variant="destructive" className="gap-1 cursor-pointer" onClick={async () => {
+                              await markSecondInstallmentPaid(enrollment.id);
+                              router.refresh();
+                            }}>
+                              <X className="h-3 w-3" />
+                              {Math.round(course.price * 0.6)} USD
+                            </Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => openPaymentModal(enrollment, 2)}
+                            >
+                              <CreditCard className="h-3 w-3 mr-1" />
+                              Payer
+                            </Button>
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -380,6 +412,17 @@ export function CourseEnrollmentsClient({
           </form>
         </DialogContent>
       </Dialog>
+
+      {selectedEnrollment && (
+        <PaymentDialog
+          open={isPaymentModalOpen}
+          onOpenChange={setIsPaymentModalOpen}
+          enrollmentId={selectedEnrollment.id}
+          studentName={`${selectedEnrollment.student.firstName} ${selectedEnrollment.student.lastName}`}
+          courseName={course.name}
+          installment={selectedInstallment}
+        />
+      )}
     </>
   );
 }

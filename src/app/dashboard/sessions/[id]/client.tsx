@@ -66,6 +66,7 @@ export function SessionCoursesClient({
     description: "",
     imageUrl: "",
     location: "",
+    price: "0",
     maxStudents: "30",
     coachId: "",
     sessionsPerDay: "1",
@@ -127,6 +128,7 @@ export function SessionCoursesClient({
       description: formData.description || undefined,
       imageUrl: formData.imageUrl || undefined,
       location: formData.location || undefined,
+      price: parseFloat(formData.price) || 0,
       maxStudents: parseInt(formData.maxStudents),
       sessionsPerDay: parseInt(formData.sessionsPerDay),
       weekDays: formData.weekDays,
@@ -143,6 +145,7 @@ export function SessionCoursesClient({
       description: "",
       imageUrl: "",
       location: "",
+      price: "0",
       maxStudents: "30",
       coachId: "",
       sessionsPerDay: "1",
@@ -358,7 +361,25 @@ export function SessionCoursesClient({
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="price">Prix de la formation (USD) *</Label>
+              <Input
+                id="price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                placeholder="Ex: 250"
+                required
+              />
+              <p className="text-xs text-muted-foreground">
+                1ère tranche: {Math.round(parseFloat(formData.price || "0") * 0.4)} USD (40%) | 
+                2ème tranche: {Math.round(parseFloat(formData.price || "0") * 0.6)} USD (60%)
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="location">Lieu</Label>
                 <Input

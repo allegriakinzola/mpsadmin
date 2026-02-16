@@ -126,6 +126,7 @@ export async function createCourse(data: {
   description?: string;
   imageUrl?: string;
   location?: string;
+  price?: number;
   maxStudents?: number;
   sessionsPerDay?: number;
   weekDays?: string[];
@@ -152,6 +153,7 @@ export async function createCourse(data: {
       description: data.description,
       imageUrl: data.imageUrl,
       location: data.location,
+      price: data.price || 0,
       maxStudents: data.maxStudents || 30,
       sessionsPerDay: data.sessionsPerDay || 1,
       weekDays: data.weekDays || [],
@@ -186,6 +188,7 @@ export async function updateCourse(
     description?: string;
     imageUrl?: string;
     location?: string;
+    price?: number;
     maxStudents?: number;
     sessionsPerDay?: number;
     weekDays?: string[];
